@@ -1,0 +1,9 @@
+# credential things
+token.json
+credentials.json
+
+# random additional things
+/__pycache__
+
+# development stuffs 
+outputFile.txt
