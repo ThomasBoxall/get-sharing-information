@@ -1,12 +1,20 @@
 class Permission:
-    def __init__(self, id, emailAddress, permissionDetails):
+    def __init__(self, id, type, permissionDetails):
         self.id = id
-        self.emailAddress = emailAddress
+        self.type = type
         self.permissionType = permissionDetails[0]['permissionType']
         self.role = permissionDetails[0]['role']
-        self.inheritedFrom = permissionDetails[0]['inheritedFrom']
         self.inherited = permissionDetails[0]['inherited']
 
+    def addEmail(self, email):
+        self.emailAddress = email
+    
+    def addInheritedFrom(self, inheritedFrom):
+        self.inheritedFrom = inheritedFrom
+
     def __str__(self) -> str:
-        output = f"{self.emailAddress} - {self.role} ({self.inherited}) \n"
+        if self.type == "user":
+            output = f"{self.emailAddress} - {self.role} ({self.inherited}) \n"
+        else:
+            output = f"{self.type} - {self.role} ({self.inherited})\n"
         return output

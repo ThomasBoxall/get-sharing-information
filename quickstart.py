@@ -47,7 +47,7 @@ def main():
     # Call the Drive v3 API
     results = (
         service.files()
-        .list(pageSize=1, fields=SEARCH_FIELDS, includeItemsFromAllDrives=True, supportsAllDrives=True, driveId=DRIVE_ID, corpora="drive")
+        .list(pageSize=10, fields=SEARCH_FIELDS, includeItemsFromAllDrives=True, supportsAllDrives=True, driveId=DRIVE_ID, corpora="drive")
         .execute()
     )
     items = results.get("files", [])
@@ -63,12 +63,20 @@ def main():
         try:
             for permToExamine in masterList[-1].permissionIds:
                 permResults = (
-                service.permissions()
-                .get(fields="id, emailAddress, permissionDetails", supportsAllDrives=True, useDomainAdminAccess=False, fileId=masterList[-1].getId(), permissionId=permToExamine)
-                .execute()
+                  service.permissions()
+                  .get(fields="id, emailAddress, permissionDetails, type", supportsAllDrives=True, useDomainAdminAccess=False, fileId=masterList[-1].getId(), permissionId=permToExamine)
+                  .execute()
                 )
-                # print(permResults)
-                masterList[-1].addPermission(Permission(permResults['id'], permResults['emailAddress'],permResults['permissionDetails']))
+                print(permResults)
+                # now add to permission list
+                # initially categories that everyone has
+                masterList[-1].addPermission(Permission(permResults['id'], permResults['type'],permResults['permissionDetails']))
+                # now add email if type is group or user
+                if(masterList[-1].permissions[-1].type == "group" or masterList[-1].permissions[-1].type == "user"):
+                  masterList[-1].permissions[-1].addEmail(permResults['emailAddress'])
+                # now add inheritedFrom if inherited
+                if(masterList[-1].permissions[-1].inherited):
+                    masterList[-1].permissions[-1].addInheritedFrom(permResults['permissionDetails'][0]['inheritedFrom'])
 
         except HttpError as error2:
             print(f"error: {error2}")
