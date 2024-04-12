@@ -93,15 +93,14 @@ def main():
         log(f"Completed Drive API use. (Total Calls: {totalApiCalls})")
 
         log(f"Beginning processing of data for CSV export")
-        fileArr = []
+        outputArr = []
         for currentFile in masterList:
-            if currentFile.mimeType == "application/vnd.google-apps.folder":
-                fileArr.append(exportFileToCSVFormat(currentFile))
+            outputArr.append(exportFileToCSVFormat(currentFile))
         
         log(f"Writing to CSV")
-        with open("./output/folder-output.csv", "w", newline='') as csvFile:
+        with open("./output/master-output.csv", "w", newline='') as csvFile:
             writer = csv.writer(csvFile)
-            for currentRow in fileArr:
+            for currentRow in outputArr:
                 writer.writerow(currentRow)
         
         log(f"Written to CSV")
@@ -117,8 +116,8 @@ def main():
 
         log("Written to Debug File")
 
-        print(len(fileArr))
-        print(fileArr[0])
+        print(len(outputArr))
+        print(outputArr[0])
     
 
     except HttpError as error:
@@ -160,11 +159,13 @@ def exportFileToCSVFormat(file: File):
     # mime type
     thisRow.append(file.mimeType)
     # Editors (inherited)
-    thisRow.append(file.getEditors(inherited=True))
+    thisRow.append(file.getUserPermissions(inherited=True, permissionType="edit"))
     # Editors (not inherited)
-    thisRow.append(file.getEditors(inherited=False))
+    thisRow.append(file.getUserPermissions(inherited=False, permissionType="edit"))
     # viewers (inherited)
-
+    thisRow.append(file.getUserPermissions(inherited=True, permissionType="view"))
+    # viewers (not inherited)
+    thisRow.append(file.getUserPermissions(inherited=False, permissionType="view"))
     return thisRow
     
 
