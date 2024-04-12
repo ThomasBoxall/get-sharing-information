@@ -100,7 +100,7 @@ def main():
         # sort the outputArr by filepath [x][0] (0th element of inner arrays)
         outputArr.sort(key=lambda x:x[0])
 
-        outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS', 'LAST MODIFIED', 'SIZE (BYTES)'])
+        outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS', 'LAST MODIFIED', 'SIZE (BYTES)', 'CHILDREN (ALL)', 'CHILDREN (FILES)', 'CHILDREN (FOLDERS)'])
         
         log(f"Writing to CSV")
         with open("./output/master-output.csv", "w", newline='') as csvFile:
@@ -178,6 +178,12 @@ def exportFileToCSVFormat(file: File):
     thisRow.append(file.modifiedTime)
     #size
     thisRow.append(file.size)
+    # children
+    thisRow.append(getCountChildren(file, "all"))
+    # children (files)
+    thisRow.append(getCountChildren(file, "file"))
+    # children (folders)
+    thisRow.append(getCountChildren(file, "folder"))
     return thisRow
 
 def getFilepath(currentFile: File):
@@ -196,6 +202,24 @@ def displayFilepath(currentFile: File):
     else:
         currFileString = f"{currentFile.name}"
     return getFilepath(currentFile) + currFileString
+
+def getCountChildren(file: File, filter: str):
+    children = 0
+    if filter == "all":
+        for examineFile in masterList:
+            if(examineFile.parents[0] == file.id):
+                children = children + 1
+    elif filter == "file":
+        for examineFile in masterList:
+            if examineFile.mimeType != "application/vnd.google-apps.folder":
+                if(examineFile.parents[0] == file.id):
+                    children = children + 1
+    elif filter == "folder":
+        for examineFile in masterList:
+            if examineFile.mimeType == "application/vnd.google-apps.folder":
+                if(examineFile.parents[0] == file.id):
+                    children = children + 1
+    return children
     
 
 def log(message, logType="INFO"):
