@@ -97,6 +97,11 @@ def main():
         for currentFile in masterList:
             outputArr.append(exportFileToCSVFormat(currentFile))
         
+        # sort the outputArr by filepath [x][0] (0th element of inner arrays)
+        outputArr.sort(key=lambda x:x[0])
+
+        outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS'])
+        
         log(f"Writing to CSV")
         with open("./output/master-output.csv", "w", newline='') as csvFile:
             writer = csv.writer(csvFile)
@@ -115,9 +120,6 @@ def main():
         file.close()
 
         log("Written to Debug File")
-
-        print(len(outputArr))
-        print(outputArr[0])
     
 
     except HttpError as error:
@@ -133,7 +135,7 @@ def appendFileToMasterList(items, service):
                 totalApiCalls = totalApiCalls + 1 
                 permResults = (
                   service.permissions()
-                  .get(fields="id, emailAddress, permissionDetails, type", supportsAllDrives=True, useDomainAdminAccess=False, fileId=masterList[-1].getId(), permissionId=permToExamine)
+                  .get(fields="id, emailAddress, permissionDetails, type, displayName", supportsAllDrives=True, useDomainAdminAccess=False, fileId=masterList[-1].getId(), permissionId=permToExamine)
                   .execute()
                 )
                 # now add to permission list
@@ -141,7 +143,7 @@ def appendFileToMasterList(items, service):
                 masterList[-1].addPermission(Permission(permResults['id'], permResults['type'],permResults['permissionDetails']))
                 # now add email if type is group or user
                 if(masterList[-1].permissions[-1].type == "group" or masterList[-1].permissions[-1].type == "user"):
-                  masterList[-1].permissions[-1].addEmail(permResults['emailAddress'])
+                  masterList[-1].permissions[-1].addEmail(permResults['emailAddress'],permResults['displayName'])
                 # now add inheritedFrom if inherited
                 if(masterList[-1].permissions[-1].inherited):
                     masterList[-1].permissions[-1].addInheritedFrom(permResults['permissionDetails'][0]['inheritedFrom'])
@@ -153,7 +155,7 @@ def exportFileToCSVFormat(file: File):
     thisRow = []
     
     # filepath, for now add a placeholder
-    thisRow.append("/f/i/l/e/p/a/t/h")
+    thisRow.append(displayFilepath(file))
     # name
     thisRow.append(file.name)
     # mime type
@@ -166,7 +168,26 @@ def exportFileToCSVFormat(file: File):
     thisRow.append(file.getUserPermissions(inherited=True, permissionType="view"))
     # viewers (not inherited)
     thisRow.append(file.getUserPermissions(inherited=False, permissionType="view"))
+    # link permissions
+    thisRow.append(file.getTypedPermissions())
     return thisRow
+
+def getFilepath(currentFile: File):
+    if currentFile.parents[0] == DRIVE_ID:
+        return "/"
+    else:
+        # we need to find the thing in the array then recurse
+        for examineFile in masterList:
+            if (examineFile.id == currentFile.parents[0]):
+                return  getFilepath(examineFile) + f"{examineFile.name}/"
+
+def displayFilepath(currentFile: File):
+    # call this one to get filepath as it adds the currentFile's name and potentially a slash on the end
+    if currentFile.mimeType == "application/vnd.google-apps.folder":
+        currFileString = f"{currentFile.name}/"
+    else:
+        currFileString = f"{currentFile.name}"
+    return getFilepath(currentFile) + currFileString
     
 
 def log(message, logType="INFO"):

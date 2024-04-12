@@ -6,9 +6,11 @@ class Permission:
         self.role = permissionDetails[0]['role']
         self.inherited = permissionDetails[0]['inherited']
         self.emailAddress = None
+        self.name = None
 
-    def addEmail(self, email):
+    def addEmail(self, email, name):
         self.emailAddress = email
+        self.name = name
     
     def addInheritedFrom(self, inheritedFrom):
         self.inheritedFrom = inheritedFrom

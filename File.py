@@ -41,10 +41,17 @@ class File:
                 if inherited:
                     if(currentPerm.emailAddress and currentPerm.inherited):
                         # we have an email address added permission & a inherited permission
-                        returnStr = returnStr + f"{currentPerm.emailAddress} ({currentPerm.role}) \n"
+                        returnStr = returnStr + f"{currentPerm.name} <{currentPerm.emailAddress}> ({currentPerm.role})\n"
                 else:
                     # not inherited
                     if(currentPerm.emailAddress and not currentPerm.inherited):
                         # we have an email address added permission & a not inherited permission
-                        returnStr = returnStr + f"{currentPerm.emailAddress} ({currentPerm.role}) \n "
+                        returnStr = returnStr + f"{currentPerm.name} <{currentPerm.emailAddress}> ({currentPerm.role})\n"
+        return returnStr
+
+    def getTypedPermissions(self):
+        returnStr = ""
+        for currentPerm in self.permissions:
+            if currentPerm.type != "user" and currentPerm.type != "group":
+                returnStr = returnStr + f"{currentPerm.type}:{currentPerm.role}\n"
         return returnStr
