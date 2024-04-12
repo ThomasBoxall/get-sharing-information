@@ -6,4 +6,4 @@ credentials.json
 /__pycache__
 
 # development stuffs 
-outputFile.txt
+/output

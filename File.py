@@ -25,3 +25,21 @@ class File:
     
     def addPermission(self, permission):
         self.permissions.append(permission)
+    
+    def getEditors(self, inherited=False):
+        returnStr = ""
+        editorPerms = ['organizer', 'fileOrganizer', 'writer']
+        for currentPerm in self.permissions:
+            if currentPerm.role in editorPerms:
+                # we are dealing with an "editor" permission
+                if inherited:
+                    if(currentPerm.emailAddress and currentPerm.inherited):
+                        # we have an email address added permission & a inherited permission
+                        returnStr = returnStr + f"{currentPerm.emailAddress} ({currentPerm.role}) \n"
+                else:
+                    # not inherited
+                    if(currentPerm.emailAddress and not currentPerm.inherited):
+                        # we have an email address added permission & a not inherited permission
+                        returnStr = returnStr + f"{currentPerm.emailAddress} ({currentPerm.role}) \n "
+        return returnStr
+

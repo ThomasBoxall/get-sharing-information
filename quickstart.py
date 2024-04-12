@@ -1,5 +1,6 @@
 import os.path
 from datetime import datetime
+import csv
 
 from File import *
 from Permission import *
@@ -28,6 +29,8 @@ def main():
     startTime = datetime.now()
     log(f"Starting Execution")
 
+    log(f"Beginning Credentials Validation")
+
     creds = None
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -48,6 +51,8 @@ def main():
             token.write(creds.to_json())
 
     log(f"Credentials Validated")
+
+    log(f"Beginning Drive API Calls")
 
     try:
         service = build("drive", "v3", credentials=creds)
@@ -85,17 +90,35 @@ def main():
             else:
                 appendFileToMasterList(items, service)
             log(f"List now contains {len(masterList)} items")
+        log(f"Completed Drive API use. (Total Calls: {totalApiCalls})")
+
+        log(f"Beginning processing of data for CSV export")
+        fileArr = []
+        for currentFile in masterList:
+            if currentFile.mimeType == "application/vnd.google-apps.folder":
+                fileArr.append(exportFileToCSVFormat(currentFile))
+        
+        log(f"Writing to CSV")
+        with open("./output/folder-output.csv", "w", newline='') as csvFile:
+            writer = csv.writer(csvFile)
+            for currentRow in fileArr:
+                writer.writerow(currentRow)
+        
+        log(f"Written to CSV")
         
         endTime = datetime.now()
-        log(f"Main Execution Complete. Time elapsed: {(endTime - startTime)}")
+        log(f"Main Execution Complete. Total time elapsed: {(endTime - startTime)}")
 
         # finally (for debug) write out the nice looking view of masterList to file. 
-        file = open("outputFile.txt", "w")
+        file = open("./output/outputFile.txt", "w")
         for item in masterList:
             file.write(f"{item}\n")
         file.close()
 
         log("Written to Debug File")
+
+        print(len(fileArr))
+        print(fileArr[0])
     
 
     except HttpError as error:
@@ -126,6 +149,23 @@ def appendFileToMasterList(items, service):
 
         except HttpError as error:
             log(f"appendFileToMasterList: {error}", "ERROR")
+
+def exportFileToCSVFormat(file: File):
+    thisRow = []
+    
+    # filepath, for now add a placeholder
+    thisRow.append("/f/i/l/e/p/a/t/h")
+    # name
+    thisRow.append(file.name)
+    # mime type
+    thisRow.append(file.mimeType)
+    # Editors (inherited)
+    thisRow.append(file.getEditors(inherited=True))
+    # Editors (not inherited)
+    thisRow.append(file.getEditors(inherited=False))
+    # viewers (inherited)
+
+    return thisRow
     
 
 def log(message, logType="INFO"):
@@ -133,3 +173,13 @@ def log(message, logType="INFO"):
 
 if __name__ == "__main__":
   main()
+
+# CSV Format
+# 0 Filepath
+# 1 Name
+# 2 Mime Type
+# 3 Editors (inherited)
+# 4 Editors (added)
+# 5 Viewers (inherited)
+# 6 Viewers (added)
+# 7 Link Permissions

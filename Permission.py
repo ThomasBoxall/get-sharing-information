@@ -5,6 +5,7 @@ class Permission:
         self.permissionType = permissionDetails[0]['permissionType']
         self.role = permissionDetails[0]['role']
         self.inherited = permissionDetails[0]['inherited']
+        self.emailAddress = None
 
     def addEmail(self, email):
         self.emailAddress = email
