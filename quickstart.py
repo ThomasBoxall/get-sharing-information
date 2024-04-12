@@ -16,7 +16,7 @@ from googleapiclient.errors import HttpError
 # If modifying these scopes, delete the file token.json.
 SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
 DRIVE_ID = "0AEiNjzyhwT5NUk9PVA"
-SEARCH_FIELDS = "nextPageToken, files(id, name, mimeType, parents, permissionIds)"
+SEARCH_FIELDS = "nextPageToken, files(id, name, mimeType, parents, permissionIds, modifiedTime, size)"
 PAGE_SIZE = 100
 
 masterList = []
@@ -100,7 +100,7 @@ def main():
         # sort the outputArr by filepath [x][0] (0th element of inner arrays)
         outputArr.sort(key=lambda x:x[0])
 
-        outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS'])
+        outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS', 'LAST MODIFIED', 'SIZE (BYTES)'])
         
         log(f"Writing to CSV")
         with open("./output/master-output.csv", "w", newline='') as csvFile:
@@ -129,7 +129,11 @@ def main():
 def appendFileToMasterList(items, service):
     global totalApiCalls
     for item in items:
-        masterList.append(File(item['id'], item['mimeType'], item['name'], item['parents'], item['permissionIds']))
+        if 'size' in item:
+            size = item['size']
+        else:
+            size = "n/a"
+        masterList.append(File(item['id'], item['mimeType'], item['name'], item['parents'], item['permissionIds'], item['modifiedTime'], size))
         try:
             for permToExamine in masterList[-1].permissionIds:
                 totalApiCalls = totalApiCalls + 1 
@@ -170,6 +174,10 @@ def exportFileToCSVFormat(file: File):
     thisRow.append(file.getUserPermissions(inherited=False, permissionType="view"))
     # link permissions
     thisRow.append(file.getTypedPermissions())
+    # last modified
+    thisRow.append(file.modifiedTime)
+    #size
+    thisRow.append(file.size)
     return thisRow
 
 def getFilepath(currentFile: File):
@@ -195,13 +203,3 @@ def log(message, logType="INFO"):
 
 if __name__ == "__main__":
   main()
-
-# CSV Format
-# 0 Filepath
-# 1 Name
-# 2 Mime Type
-# 3 Editors (inherited)
-# 4 Editors (added)
-# 5 Viewers (inherited)
-# 6 Viewers (added)
-# 7 Link Permissions
