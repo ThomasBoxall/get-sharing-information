@@ -4,5 +4,8 @@ service_account_key.json
 # random additional things
 /__pycache__
 
+# configuration files
+config.yml
+
 # development stuffs 
 /output

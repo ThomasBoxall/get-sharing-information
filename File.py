@@ -30,25 +30,25 @@ class File:
     def addPermission(self, permission):
         self.permissions.append(permission)
 
-    def getUserPermissions(self, inherited, permissionType):
+    def getUserPermissions(self, inherited, permissionType, ignore):
         returnStr = ""
         match permissionType:
             case "edit":
-                validPermissions = ['organizer', 'fileOrganizer', 'writer']
+                validPermissions = ['owner', 'Manager', 'Content Manager', 'Contributor']
             case "view":
-                validPermissions = ['commenter', 'reader']
+                validPermissions = ['Commenter', 'Viewer']
             case _:
                 validPermissions = []
         for currentPerm in self.permissions:
             if currentPerm.role in validPermissions:
                 # we are dealing with an "editor" permission
                 if inherited:
-                    if(currentPerm.emailAddress and currentPerm.inherited):
+                    if(currentPerm.emailAddress and currentPerm.inherited and currentPerm.emailAddress not in ignore):
                         # we have an email address added permission & a inherited permission
                         returnStr = returnStr + f"{currentPerm.name} <{currentPerm.emailAddress}> ({currentPerm.role})\n"
                 else:
                     # not inherited
-                    if(currentPerm.emailAddress and not currentPerm.inherited):
+                    if(currentPerm.emailAddress and not currentPerm.inherited and currentPerm.emailAddress not in ignore):
                         # we have an email address added permission & a not inherited permission
                         returnStr = returnStr + f"{currentPerm.name} <{currentPerm.emailAddress}> ({currentPerm.role})\n"
         return returnStr

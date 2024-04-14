@@ -1,6 +1,8 @@
 import os.path
 from datetime import datetime
 import csv
+import yaml
+import sys
 
 from File import *
 from Permission import *
@@ -12,27 +14,62 @@ from googleapiclient.errors import HttpError
 
 
 
-# If modifying these scopes, delete the file token.json.
+# Declare constant constants
 SCOPES = ["https://www.googleapis.com/auth/drive.metadata.readonly"]
-DRIVE_ID = "0AEiNjzyhwT5NUk9PVA"
 SEARCH_FIELDS = "nextPageToken, files(id, name, mimeType, parents, permissionIds, modifiedTime, size)"
 PAGE_SIZE = 100
+OUTPUT_DIR = "./output/" # this isn't a config option because of logging funsies. Maybe something to look at improving in the future for this "quick and dirty" script...
 
+# declare 'constants' which get set from config.yml
+DRIVE_ID = ""
+SERVICE_ACCOUNT_KEY_FILE = ""
+IGNORE_EMAILS = []
+DISPLAY_LOGGING_TO_CONSOLE = False
+DEBUG_OUTPUT_FILE = False
+
+# declare global variables
 masterList = []
-
 totalApiCalls = 0
+
+def initialise():
+    log("Starting Initialisation")
+    global DRIVE_ID, SERVICE_ACCOUNT_KEY_FILE, IGNORE_EMAILS, OUTPUT_DIR, DISPLAY_LOGGING_TO_CONSOLE, DEBUG_OUTPUT_FILE
+    # initialise configuration options
+    try:
+        with open('config.yml', 'r') as configYml:
+            configData = yaml.safe_load(configYml)
+    except FileNotFoundError as fnfError:
+        print("config.yml not found - see README for instructions")
+        sys.exit()
+    DRIVE_ID = configData['drive_id']
+    SERVICE_ACCOUNT_KEY_FILE = configData['service_account_key_filepath']
+    IGNORE_EMAILS = configData['ignore_emails']
+    DISPLAY_LOGGING_TO_CONSOLE = configData['logging']['display_to_console']
+    DEBUG_OUTPUT_FILE = configData['logging']['debug_output_file']
+    log("Configuration Options Initialised")
+
+    # initialise output directory
+    if not os.path.exists(OUTPUT_DIR):
+        log("Creating output Directory")
+        os.makedirs(OUTPUT_DIR)
+    
+    # if log file exists - empties it, if not - creates it
+    open(f"{OUTPUT_DIR}get-sharing-information.log", 'w').close()
+
+    log("Initialisation complete")
+
 
 def main():
     global totalApiCalls
 
     startTime = datetime.now()
-    log(f"Starting Execution")
+    log(f"Starting Main Execution")
 
     log(f"Beginning Credentials Validation")
 
     creds = None
     creds = service_account.Credentials.from_service_account_file(
-                              filename='service_account_key.json', 
+                              filename=SERVICE_ACCOUNT_KEY_FILE, 
                               scopes=SCOPES)
 
     log(f"Credentials Validated")
@@ -57,7 +94,7 @@ def main():
             return
         else:
             appendFileToMasterList(items, service)
-            log(f"Page Completed. masterList now contains {len(masterList)} items")
+            log(f"Page Completed. (Total files examined: {len(masterList)})")
         
         # Now we want to continually iterate until npt is None getting the remainder of the files from the drive
         while(npt != None):
@@ -74,7 +111,7 @@ def main():
                 print("No files found.")
             else:
                 appendFileToMasterList(items, service)
-            log(f"List now contains {len(masterList)} items")
+            log(f"Page Completed. (Total files examined: {len(masterList)})")
         log(f"Completed Drive API use. (Total Calls: {totalApiCalls})")
 
         log(f"Beginning processing of data for CSV export")
@@ -88,7 +125,7 @@ def main():
         outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS', 'LAST MODIFIED', 'SIZE (BYTES)', 'CHILDREN (ALL)', 'CHILDREN (FILES)', 'CHILDREN (FOLDERS)'])
         
         log(f"Writing to CSV")
-        with open("./output/master-output.csv", "w", newline='') as csvFile:
+        with open(f"{OUTPUT_DIR}master-output.csv", "w", newline='') as csvFile:
             writer = csv.writer(csvFile)
             for currentRow in outputArr:
                 writer.writerow(currentRow)
@@ -98,13 +135,14 @@ def main():
         endTime = datetime.now()
         log(f"Main Execution Complete. Total time elapsed: {(endTime - startTime)}")
 
-        # finally (for debug) write out the nice looking view of masterList to file. 
-        file = open("./output/outputFile.txt", "w")
-        for item in masterList:
-            file.write(f"{item}\n")
-        file.close()
+        if DEBUG_OUTPUT_FILE:
+            # finally (for debug) write out the nice looking view of masterList to file. 
+            file = open(f"{OUTPUT_DIR}outputFile.txt", "w")
+            for item in masterList:
+                file.write(f"{item}\n")
+            file.close()
 
-        log("Written to Debug File")
+            log("Written to Debug File")
     
 
     except HttpError as error:
@@ -150,13 +188,13 @@ def exportFileToCSVFormat(file: File):
     # mime type
     thisRow.append(file.mimeType)
     # Editors (inherited)
-    thisRow.append(file.getUserPermissions(inherited=True, permissionType="edit"))
+    thisRow.append(file.getUserPermissions(inherited=True, permissionType="edit", ignore=IGNORE_EMAILS))
     # Editors (not inherited)
-    thisRow.append(file.getUserPermissions(inherited=False, permissionType="edit"))
+    thisRow.append(file.getUserPermissions(inherited=False, permissionType="edit", ignore=IGNORE_EMAILS))
     # viewers (inherited)
-    thisRow.append(file.getUserPermissions(inherited=True, permissionType="view"))
+    thisRow.append(file.getUserPermissions(inherited=True, permissionType="view", ignore=IGNORE_EMAILS))
     # viewers (not inherited)
-    thisRow.append(file.getUserPermissions(inherited=False, permissionType="view"))
+    thisRow.append(file.getUserPermissions(inherited=False, permissionType="view", ignore=IGNORE_EMAILS))
     # link permissions
     thisRow.append(file.getTypedPermissions())
     # last modified
@@ -205,10 +243,19 @@ def getCountChildren(file: File, filter: str):
                 if(examineFile.parents[0] == file.id):
                     children = children + 1
     return children
-    
+
 
 def log(message, logType="INFO"):
-    print(f"{logType} [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]: {message}")
+    logTime = datetime.now()
+    # first we check and potentially print to the console
+    if DISPLAY_LOGGING_TO_CONSOLE:
+        print(f"{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S")}]: {message}")
+    # now we write to file
+    with open(f"{OUTPUT_DIR}get-sharing-information.log", "a") as logFile:
+        logFile.write(f"{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S.%f")[:-2]}]: {message}\n")
+    logFile.close()
+    
 
 if __name__ == "__main__":
+  initialise()
   main()

@@ -3,7 +3,7 @@ class Permission:
         self.id = id
         self.type = type
         self.permissionType = permissionDetails[0]['permissionType']
-        self.role = permissionDetails[0]['role']
+        self.role = self.permissionTranslator(permissionDetails[0]['role'])
         self.inherited = permissionDetails[0]['inherited']
         self.emailAddress = None
         self.name = None
@@ -14,6 +14,21 @@ class Permission:
     
     def addInheritedFrom(self, inheritedFrom):
         self.inheritedFrom = inheritedFrom
+
+    def permissionTranslator(self, permToTranslate: str) -> str:
+        match permToTranslate:
+            case "organizer":
+                return "Manager"
+            case "fileOrganizer":
+                return "Content Manager"
+            case "writer":
+                return "Contributor"
+            case "commenter":
+                return "Commenter"
+            case "reader":
+                return "Viewer"
+            case _:
+                return permToTranslate
 
     def __str__(self) -> str:
         if self.type == "user":
