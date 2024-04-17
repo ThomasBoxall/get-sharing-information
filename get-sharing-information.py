@@ -249,10 +249,10 @@ def log(message, logType="INFO"):
     logTime = datetime.now()
     # first we check and potentially print to the console
     if DISPLAY_LOGGING_TO_CONSOLE:
-        print(f"{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S")}]: {message}")
+        print(f'{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S")}]: {message}')
     # now we write to file
     with open(f"{OUTPUT_DIR}get-sharing-information.log", "a") as logFile:
-        logFile.write(f"{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S.%f")[:-2]}]: {message}\n")
+        logFile.write(f'{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S.%f")[:-2]}]: {message}\n')
     logFile.close()
     
 
