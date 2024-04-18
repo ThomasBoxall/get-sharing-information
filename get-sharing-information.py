@@ -3,6 +3,7 @@ from datetime import datetime
 import csv
 import yaml
 import sys
+import requests
 
 from File import *
 from Permission import *
@@ -26,14 +27,16 @@ SERVICE_ACCOUNT_KEY_FILE = ""
 IGNORE_EMAILS = []
 DISPLAY_LOGGING_TO_CONSOLE = False
 DEBUG_OUTPUT_FILE = False
+NTFY_URL = ""
 
 # declare global variables
 masterList = []
+filesToExamine = []
 totalApiCalls = 0
 
 def initialise():
     log("Starting Initialisation")
-    global DRIVE_ID, SERVICE_ACCOUNT_KEY_FILE, IGNORE_EMAILS, OUTPUT_DIR, DISPLAY_LOGGING_TO_CONSOLE, DEBUG_OUTPUT_FILE
+    global DRIVE_ID, SERVICE_ACCOUNT_KEY_FILE, IGNORE_EMAILS, OUTPUT_DIR, DISPLAY_LOGGING_TO_CONSOLE, DEBUG_OUTPUT_FILE, NTFY_URL
     # initialise configuration options
     try:
         with open('config.yml', 'r') as configYml:
@@ -46,6 +49,7 @@ def initialise():
     IGNORE_EMAILS = configData['ignore_emails']
     DISPLAY_LOGGING_TO_CONSOLE = configData['logging']['display_to_console']
     DEBUG_OUTPUT_FILE = configData['logging']['debug_output_file']
+    NTFY_URL = configData['logging']['ntfy_url']
     log("Configuration Options Initialised")
 
     # initialise output directory
@@ -63,7 +67,7 @@ def main():
     global totalApiCalls
 
     startTime = datetime.now()
-    log(f"Starting Main Execution")
+    log(f"Starting Main Execution", ntfy=True)
 
     log(f"Beginning Credentials Validation")
 
@@ -93,8 +97,9 @@ def main():
             print("No files found.")
             return
         else:
-            appendFileToMasterList(items, service)
-            log(f"Page Completed. (Total files examined: {len(masterList)})")
+            for currentItem in items:
+                filesToExamine.append(currentItem)
+            log(f"File Page Retrieved. Contained {len(items)} files")
         
         # Now we want to continually iterate until npt is None getting the remainder of the files from the drive
         while(npt != None):
@@ -110,8 +115,15 @@ def main():
             if not items:
                 print("No files found.")
             else:
-                appendFileToMasterList(items, service)
-            log(f"Page Completed. (Total files examined: {len(masterList)})")
+                for currentItem in items:
+                    filesToExamine.append(currentItem)
+            log(f"File Page Retrieved. Contained {len(items)} files")
+
+        # now we have appended all the files to filesToExamine, so we can do some useful logging
+        log(f"Retrieved all files. (Total Files: {len(filesToExamine)})")
+
+        examineFiles(service)
+
         log(f"Completed Drive API use. (Total Calls: {totalApiCalls})")
 
         log(f"Beginning processing of data for CSV export")
@@ -133,7 +145,7 @@ def main():
         log(f"Written to CSV")
         
         endTime = datetime.now()
-        log(f"Main Execution Complete. Total time elapsed: {(endTime - startTime)}")
+        log(f"Main Execution Complete. Total time elapsed: {(endTime - startTime)}", ntfy=True)
 
         if DEBUG_OUTPUT_FILE:
             # finally (for debug) write out the nice looking view of masterList to file. 
@@ -149,14 +161,16 @@ def main():
         log(f"main: {error}", "ERROR")
 
   
-def appendFileToMasterList(items, service):
+def examineFiles(service):
     global totalApiCalls
-    for item in items:
-        if 'size' in item:
-            size = item['size']
+    counter = 0
+    examineBatch = 100
+    for currentFile in filesToExamine:
+        if 'size' in currentFile:
+            size = currentFile['size']
         else:
             size = "n/a"
-        masterList.append(File(item['id'], item['mimeType'], item['name'], item['parents'], item['permissionIds'], item['modifiedTime'], size))
+        masterList.append(File(currentFile['id'], currentFile['mimeType'], currentFile['name'], currentFile['parents'], currentFile['permissionIds'], currentFile['modifiedTime'], size))
         try:
             for permToExamine in masterList[-1].permissionIds:
                 totalApiCalls = totalApiCalls + 1 
@@ -176,7 +190,14 @@ def appendFileToMasterList(items, service):
                     masterList[-1].permissions[-1].addInheritedFrom(permResults['permissionDetails'][0]['inheritedFrom'])
 
         except HttpError as error:
-            log(f"appendFileToMasterList: {error}", "ERROR")
+            log(f"examineFiles: {error}", "ERROR")
+
+        counter = counter + 1
+        if(counter == examineBatch):
+            log(f"Examined {examineBatch} Files. (Total examined: {len(masterList)})")
+            counter = 0
+    log(f"Completed Examining Files. (Total examined: {len(masterList)})")
+    
 
 def exportFileToCSVFormat(file: File):
     thisRow = []
@@ -245,7 +266,7 @@ def getCountChildren(file: File, filter: str):
     return children
 
 
-def log(message, logType="INFO"):
+def log(message, logType="INFO", ntfy=False):
     logTime = datetime.now()
     # first we check and potentially print to the console
     if DISPLAY_LOGGING_TO_CONSOLE:
@@ -254,7 +275,16 @@ def log(message, logType="INFO"):
     with open(f"{OUTPUT_DIR}get-sharing-information.log", "a") as logFile:
         logFile.write(f'{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S.%f")[:-2]}]: {message}\n')
     logFile.close()
-    
+    # now deal with ntfy, if this fails - oh well
+    if(ntfy==True or logType=="ERROR"):
+        try: 
+            requests.post(NTFY_URL,
+            data=f'{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S")}]: {message}',
+            headers={
+                "Title": f"{logType} from GetSharingInformation",
+            })
+        except :
+            log(f"NTFY Failed for previous error", "WARN")
 
 if __name__ == "__main__":
   initialise()

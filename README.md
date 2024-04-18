@@ -13,6 +13,7 @@ ignore_emails: ['i-am-an@email-address.com']
 logging:
   display_to_console: True
   debug_output_file: True
+  ntfy_url: 'https://ntfy.sh/example'
 ```
 * `drive_id`: the ID of the shared drive you wish to examine.
 * `service_account_key_filepath`: the filepath to the file containing the Service Account (see below)
@@ -20,6 +21,8 @@ logging:
 * `logging`
   * `display_to_console`: controls if the log messages are displayed to the console or just written to a file
   * `debug_output_file`: controls if the 'debug output' is printed to a file or not.
+  * `ntfy_url`: the [NTFY](https://ntfy.sh) URL to notify. (more options to control this are coming soon)
+
 Note that boolean options have to be in Python's boolean format (capital initials)
 
 ## Running The Script
