@@ -81,7 +81,10 @@ def main():
     log(f"Beginning Drive API Calls")
 
     try:
+
         service = build("drive", "v3", credentials=creds)
+
+        getDriveRootFileEntry(service)
 
         # Call the Drive v3 API
         totalApiCalls = totalApiCalls + 1 
@@ -120,11 +123,11 @@ def main():
             log(f"File Page Retrieved. Contained {len(items)} files")
 
         # now we have appended all the files to filesToExamine, so we can do some useful logging
-        log(f"Retrieved all files. (Total Files: {len(filesToExamine)})")
+        log(f"Retrieved all files. (Total Files: {len(filesToExamine)})", ntfy=True)
 
         examineFiles(service)
 
-        log(f"Completed Drive API use. (Total Calls: {totalApiCalls})")
+        log(f"Completed Drive API use. (Total Calls: {totalApiCalls})", ntfy=True)
 
         log(f"Beginning processing of data for CSV export")
         outputArr = []
@@ -133,6 +136,8 @@ def main():
         
         # sort the outputArr by filepath [x][0] (0th element of inner arrays)
         outputArr.sort(key=lambda x:x[0])
+
+        outputArr.insert(0, getDriveRootFileEntry(service))
 
         outputArr.insert(0, ['FILEPATH', 'NAME', 'MIME TYPE', 'EDITORS (INHERITED)', 'EDITORS (ADDED)', 'VIEWERS (INHERITED)', 'VIEWERS (ADDED)', 'LINK PERMISSIONS', 'LAST MODIFIED', 'SIZE (BYTES)', 'CHILDREN (ALL)', 'CHILDREN (FILES)', 'CHILDREN (FOLDERS)'])
         
@@ -155,6 +160,8 @@ def main():
             file.close()
 
             log("Written to Debug File")
+        
+        
     
 
     except HttpError as error:
@@ -194,9 +201,9 @@ def examineFiles(service):
 
         counter = counter + 1
         if(counter == examineBatch):
-            log(f"Examined {examineBatch} Files. (Total examined: {len(masterList)})")
+            log(f"Examined {examineBatch} Files. (Total examined: {len(masterList)})", ntfy=True, ntfyPriority="low")
             counter = 0
-    log(f"Completed Examining Files. (Total examined: {len(masterList)})")
+    log(f"Completed Examining Files. (Total examined: {len(masterList)})", ntfy=True, ntfyPriority="low")
     
 
 def exportFileToCSVFormat(file: File):
@@ -241,6 +248,8 @@ def getFilepath(currentFile: File):
 
 def displayFilepath(currentFile: File):
     # call this one to get filepath as it adds the currentFile's name and potentially a slash on the end
+    if currentFile.parents == []:
+        return "/"
     if currentFile.mimeType == "application/vnd.google-apps.folder":
         currFileString = f"{currentFile.name}/"
     else:
@@ -265,8 +274,76 @@ def getCountChildren(file: File, filter: str):
                     children = children + 1
     return children
 
+def getDriveRootFileEntry(service):
+    global totalApiCalls
 
-def log(message, logType="INFO", ntfy=False):
+    rootDrivePermissions = []
+
+    try:
+        totalApiCalls = totalApiCalls + 1 
+        results = (
+            service.permissions()
+            .list(pageSize=1, supportsAllDrives=True, useDomainAdminAccess=False, fileId=DRIVE_ID)
+            .execute()
+        )
+        items = results.get("permissions", [])
+        npt = results.get("nextPageToken")
+
+        if not items:
+            print("No files found.")
+            return
+        else:
+            for currentItem in items:
+                rootDrivePermissions.append(currentItem)
+            # log(f"File Page Retrieved. Contained {len(items)} files")
+        
+        # Now we want to continually iterate until npt is None getting the remainder of the permissions from the drive id
+        while(npt != None):
+            totalApiCalls = totalApiCalls + 1 
+            results = (
+                service.permissions()
+                .list(pageSize=1, supportsAllDrives=True, useDomainAdminAccess=False, pageToken=npt, fileId=DRIVE_ID)
+                .execute()
+            )   
+            items = results.get("permissions", [])
+            npt = results.get("nextPageToken")
+
+            if not items:
+                print("No permissions found.")
+            else:
+                for currentItem in items:
+                    rootDrivePermissions.append(currentItem)
+                # log(f"File Page Retrieved. Contained {len(items)} files")
+
+
+        rootDrive = File(DRIVE_ID, "application/vnd.google-apps.folder", "Shared Drive", [], [], "", "")
+        try:
+            for permToExamine in rootDrivePermissions:
+                totalApiCalls = totalApiCalls + 1 
+                permResults = (
+                  service.permissions()
+                  .get(fields="id, emailAddress, permissionDetails, type, displayName", supportsAllDrives=True, useDomainAdminAccess=False, fileId=DRIVE_ID, permissionId=permToExamine['id'])
+                  .execute()
+                )
+                # now add to permission list
+                # initially categories that everyone has
+                rootDrive.addPermission(Permission(permResults['id'], permResults['type'],permResults['permissionDetails']))
+                # now add email if type is group or user
+                if(rootDrive.permissions[-1].type == "group" or rootDrive.permissions[-1].type == "user"):
+                  rootDrive.permissions[-1].addEmail(permResults['emailAddress'],permResults['displayName'])
+                # now add inheritedFrom if inherited
+                if(rootDrive.permissions[-1].inherited):
+                    rootDrive.permissions[-1].addInheritedFrom(permResults['permissionDetails'][0]['inheritedFrom'])
+
+        except HttpError as error:
+            log(f"getDriveRootFileEntry permissions examination: {error}", "ERROR")
+
+        return exportFileToCSVFormat(rootDrive)
+    except:
+        log("getDriveRootFileEntry, an error occurred", "ERROR")
+
+
+def log(message, logType="INFO", ntfy=False, ntfyPriority="default"):
     logTime = datetime.now()
     # first we check and potentially print to the console
     if DISPLAY_LOGGING_TO_CONSOLE:
@@ -282,6 +359,8 @@ def log(message, logType="INFO", ntfy=False):
             data=f'{logType} [{logTime.strftime("%Y-%m-%d %H:%M:%S")}]: {message}',
             headers={
                 "Title": f"{logType} from GetSharingInformation",
+                "Priority": f"{ntfyPriority}",
+
             })
         except :
             log(f"NTFY Failed for previous error", "WARN")
